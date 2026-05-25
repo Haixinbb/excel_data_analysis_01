@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>AI批量文本分析工具 - CSV智能处理</title>
+    <!-- 引入 PapaParse 用于稳健的 CSV 解析与生成，轻量且功能强大 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+        body {
+            background: #f3f4f6;
+            margin: 0;
+            padding: 24px;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        /* 卡片样式 */
+        .card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+            padding: 20px 24px;
+            transition: all 0.2s;
+        }
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #1f2937;
+            border-left: 5px solid #3b82f6;
+            padding-left: 12px;
+        }
+        .grid-2col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            transition: 0.2s;
+            background: #fff;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            ring: 2px solid #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 40px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+            margin-right: 12px;
+            margin-bottom: 8px;
+        }
+        button:hover {
+            background: #2563eb;
+            transform: scale(0.98);
+        }
+        button.secondary {
+            background: #9ca3af;
+        }
+        button.secondary:hover {
+            background: #6b7280;
+        }
+        button.warning {
+            background: #ef4444;
+        }
+        button.warning:hover {
+            background: #dc2626;
+        }
+        .progress-bar {
+            width: 100%;
+            background: #e5e7eb;
+            border-radius: 20px;
+            margin: 12px 0;
+            height: 28px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-fill {
+            background: #3b82f6;
+            height: 100%;
+            width: 0%;
+            transition: width 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .log-area {
+            background: #1e293b;
+            color: #cbd5e1;
+            border-radius: 16px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 0.75rem;
+            max-height: 180px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        th, td {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        th {
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+            font-weight: 600;
+        }
+        .badge {
+            background: #e0f2fe;
+            color: #0369a1;
+            border-radius: 30px;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .inline-code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        hr {
+            margin: 16px 0;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 标题 -->
+    <div class="card" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: white;">
+        <h1 style="margin:0">🤖 AI 批量文本分析助手</h1>
+        <p style="margin:8px 0 0; opacity:0.8">上传CSV，选择字段，配置大模型API，批量提取「用户关注点」「部位+现象」「改善机会点」</p>
+    </div>
+
+    <!-- API 配置区 -->
+    <div class="card">
+        <div class="card-title">🔌 大模型 API 配置</div>
+        <div class="grid-2col">
+            <div class="form-group">
+                <label>API Base URL <span class="badge">必需</span></label>
+                <input type="text" id="apiBaseUrl" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
+                <small class="badge" style="background:#f3f4f6;">示例: https://api.openai.com/v1  需支持 /chat/completions</small>
+            </div>
+            <div class="form-group">
+                <label>API Key <span class="badge">必需</span></label>
+                <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" value="">
+            </div>
+            <div class="form-group">
+                <label>Model Name <span class="badge">必需</span></label>
+                <input type="text" id="modelName" placeholder="gpt-3.5-turbo" value="gpt-3.5-turbo">
+            </div>
+            <div class="form-group">
+                <label>每批传给大模型的条数 <span class="badge">批量效率</span></label>
+                <input type="number" id="batchSize" min="1" max="20" value="5">
+                <small>建议 3~10，过大可能影响输出质量</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示词维护区 -->
+    <div class="card">
+        <div class="card-title">✍️ 提示词 (Prompt) 可编辑</div>
+        <div class="form-group">
+            <label>系统指令 & 输出格式要求 (支持占位符 {{input_list}})</label>
+            <textarea id="promptTemplate" rows="6" style="font-family: monospace; font-size: 0.85rem;"></textarea>
+            <small>💡 默认提示词会要求模型返回JSON数组，顺序与输入一致。占位符 {{input_list}} 会被替换为当前批次的序号+文本内容。</small>
+        </div>
+        <button id="resetDefaultPrompt" class="secondary">恢复默认提示词</button>
+    </div>
+
+    <!-- 数据导入 & 字段选择 -->
+    <div class="card">
+        <div class="card-title">📂 1. 导入 CSV 文件</div>
+        <input type="file" id="csvFileInput" accept=".csv">
+        <div id="fileInfo" style="margin-top: 10px; font-size: 0.85rem; color: #4b5563;"></div>
+        
+        <hr>
+        <div class="grid-2col">
+            <div class="form-group">
+                <label>🔑 唯一标识字段 (用于匹配行)</label>
+                <select id="idFieldSelect" disabled>
+                    <option value="">— 请先上传CSV —</option>
+                </select>
+                <small>必须唯一值，用于保存结果时定位行</small>
+            </div>
+            <div class="form-group">
+                <label>📝 待处理字段 (发送给AI的原始文本)</label>
+                <select id="textFieldSelect" disabled>
+                    <option value="">— 请先上传CSV —</option>
+                </select>
+            </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px;">
+            <button id="startProcessBtn" disabled>🚀 开始批量处理</button>
+            <button id="cancelProcessBtn" class="warning" disabled>⏹️ 终止处理</button>
+            <button id="exportBtn" disabled>💾 导出结果 CSV</button>
+            <span id="statusMsg" style="margin-left: auto; font-size: 0.85rem;"></span>
+        </div>
+        <!-- 进度条 -->
+        <div class="progress-bar" style="margin-top: 16px;">
+            <div id="progressFill" class="progress-fill">0%</div>
+        </div>
+        <!-- 日志区域 -->
+        <div class="log-area" id="logArea">
+            [系统] 就绪，等待上传CSV并配置API。
+        </div>
+    </div>
+
+    <!-- 数据预览表 -->
+    <div class="card">
+        <div class="card-title">📋 数据预览 (处理后自动刷新)</div>
+        <div class="table-wrapper" id="tablePreviewWrapper">
+            <table id="previewTable">
+                <thead><tr><th>暂无数据</th></tr></thead>
+                <tbody><tr><td>请上传CSV文件</td></tr></tbody>
+            </table>
+        </div>
+        <div style="margin-top: 8px; font-size: 0.75rem; color: #6c757d;">✅ 处理完成后将自动增加三列：“用户关注点”，“部位+现象”，“改善机会点”</div>
+    </div>
+    <footer>⚡ 注意：API需支持CORS或通过代理，调用符合 OpenAI Chat Completions 格式。批量调用采用串行批次，防止限流。</footer>
+</div>
+
+<script>
+    // ---------- 全局状态 ----------
+    let rawData = [];           // 存储原始数据 + 新增三列的对象数组
+    let originalColumns = [];   // 原始列名（不含新增的三列）
+    let idField = "";           // 选择的唯一标识字段名
+    let textField = "";         // 待处理字段名
+    let isProcessing = false;    // 是否处理中
+    let stopRequested = false;   // 终止标志
+    let currentBatchIndex = 0;
+    let totalBatches = 0;
+    
+    // DOM 元素
+    const csvFileInput = document.getElementById('csvFileInput');
+    const idFieldSelect = document.getElementById('idFieldSelect');
+    const textFieldSelect = document.getElementById('textFieldSelect');
+    const startBtn = document.getElementById('startProcessBtn');
+    const cancelBtn = document.getElementById('cancelProcessBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const progressFill = document.getElementById('progressFill');
+    const logArea = document.getElementById('logArea');
+    const previewTable = document.getElementById('previewTable');
+    const statusMsgSpan = document.getElementById('statusMsg');
+    const promptTemplate = document.getElementById('promptTemplate');
+    const resetDefaultPromptBtn = document.getElementById('resetDefaultPrompt');
+    
+    // API 参数
+    const apiBaseUrlInput = document.getElementById('apiBaseUrl');
+    const apiKeyInput = document.getElementById('apiKey');
+    const modelNameInput = document.getElementById('modelName');
+    const batchSizeInput = document.getElementById('batchSize');
+    
+    // ---------- 辅助函数 ----------
+    function addLog(message, isError = false) {
+        const logDiv = logArea;
+        const p = document.createElement('div');
+        p.style.color = isError ? '#f87171' : '#a5f3fc';
+        p.style.marginBottom = '4px';
+        p.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logDiv.appendChild(p);
+        logDiv.scrollTop = logDiv.scrollHeight;
+        // 自动清理过多日志 保留最近200条
+        while(logDiv.children.length > 200) logDiv.removeChild(logDiv.firstChild);
+    }
+    
+    // 刷新表格预览 (基于 rawData 和原始列+三列)
+    function renderTablePreview() {
+        if (!rawData.length) {
+            previewTable.innerHTML = `<thead><tr><th>暂无数据</th></tr></thead><tbody><tr><td>请上传CSV文件</td></tr></tbody>`;
+            return;
+        }
+        // 获取所有列键: 原始列 + 三个新列(如果存在这些字段则展示)
+        const addedCols = ['用户关注点', '部位+现象', '改善机会点'];
+        let allCols = [...originalColumns];
+        // 检查是否有新列存在(根据第一行是否有这些key)
+        const sample = rawData[0];
+        for (let col of addedCols) {
+            if (sample.hasOwnProperty(col) && !allCols.includes(col)) {
+                allCols.push(col);
+            } else if (!allCols.includes(col) && sample[col] !== undefined) {
+                allCols.push(col);
+            }
+        }
+        // 确保新增列都展示（即便空值）
+        for (let col of addedCols) {
+            if (!allCols.includes(col)) allCols.push(col);
+        }
+        
+        const thead = `<thead><tr>${allCols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>`;
+        const tbody = rawData.map(row => {
+            return `<tr>${allCols.map(col => `<td>${escapeHtml(String(row[col] ?? ''))}</td>`).join('')}</tr>`;
+        }).join('');
+        previewTable.innerHTML = thead + `<tbody>${tbody}</tbody>`;
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if(m === '&') return '&amp;';
+            if(m === '<') return '&lt;';
+            if(m === '>') return '&gt;';
+            return m;
+        }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+            return c;
+        });
+    }
+    
+    // 更新字段下拉框
+    function updateColumnSelectors(columns) {
+        idFieldSelect.innerHTML = '<option value="">— 请选择唯一标识字段 —</option>' + columns.map(col => `<option value="${escapeAttr(col)}">${escapeHtml(col)}</option>`).join('');
+        textFieldSelect.innerHTML = '<option value="">— 请选择待处理字段 —</option>' + columns.map(col => `<option value="${escapeAttr(col)}">${escapeHtml(col)}</option>`).join('');
+        idFieldSelect.disabled = false;
+        textFieldSelect.disabled = false;
+        // 清空之前选择
+        idField = "";
+        textField = "";
+    }
+    
+    function escapeAttr(str) { return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
+    
+    // 校验唯一标识字段是否唯一
+    function checkUniqueIdField(fieldName) {
+        if (!fieldName) return false;
+        const values = rawData.map(row => row[fieldName]);
+        const uniqueSet = new Set(values);
+        if (uniqueSet.size !== values.length) {
+            addLog(`⚠️ 警告: 字段 "${fieldName}" 存在重复值，将可能导致结果匹配错误，请确保唯一性`, true);
+            return false;
+        }
+        return true;
+    }
+    
+    // 解析CSV文件 (使用Papa)
+    function handleCSVFile(file) {
+        if (!file) return;
+        Papa.parse(file, {
+            header: true,
+            encoding: "UTF-8",
+            skipEmptyLines: true,
+            complete: (results) => {
+                if (results.errors.length) {
+                    addLog(`CSV解析警告: ${results.errors[0].message}`, true);
+                }
+                const data = results.data;
+                if (!data || data.length === 0) {
+                    addLog("错误: CSV无有效数据", true);
+                    return;
+                }
+                // 获取所有列名
+                const cols = results.meta.fields;
+                if (!cols.length) {
+                    addLog("CSV无列头信息", true);
+                    return;
+                }
+                // 初始化 rawData，添加新三列占位
+                rawData = data.map(row => {
+                    const newRow = { ...row };
+                    newRow['用户关注点'] = '';
+                    newRow['部位+现象'] = '';
+                    newRow['改善机会点'] = '';
+                    return newRow;
+                });
+                originalColumns = [...cols];
+                updateColumnSelectors(originalColumns);
+                renderTablePreview();
+                addLog(`✅ 成功加载CSV，共 ${rawData.length} 行，列: ${cols.join(', ')}`);
+                // 重置处理状态
+                stopRequested = false;
+                isProcessing = false;
+                startBtn.disabled = false;
+                exportBtn.disabled = true;  // 还未处理过没有新结果可以先禁止导出但允许导出初始；为逻辑干净，处理完成后启用
+                progressFill.style.width = '0%';
+                progressFill.innerText = '0%';
+                statusMsgSpan.innerText = '待处理';
+            },
+            error: (err) => {
+                addLog(`解析失败: ${err.message}`, true);
+            }
+        });
+    }
+    
+    csvFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleCSVFile(file);
+    });
+    
+    // 默认提示词模板
+    function getDefaultPrompt() {
+        return `我在针对破壁机产品线的产品做退货原因分析。
+帮我理解每一行的语义，提取用户的关注点，目标是找到改善产品和服务体验，提升用户体验、满意度和好感的机会点。不需要做统计分析，只需要精确到"哪个部位出了什么问题"（部位+现象）。我给你的数据，后面都需要帮我增加三列，一列是用户关注点，一列是“部位+现象”，一列是具体的“改善机会点”。
+- 部位：问题发生的具体物理位置或功能模块，比如“盖子、密封圈”；
+- 现象：该部位出现的具体问题表现，比如“盖不紧、漏水”；
+- 部位+现象：部位与现象的组合，比如“盖子盖不紧、密封圈漏水”；
+输出格式要求：帮我输出代码块格式，字段间以 制表符（Tab）分隔，以便我能复制后直接粘贴到表格。`;
+    }
+    
+    // 恢复默认提示词
+    resetDefaultPromptBtn.addEventListener('click', () => {
+        promptTemplate.value = getDefaultPrompt();
+        addLog("已恢复默认提示词模板");
+    });
+    // 初始加载默认
+    promptTemplate.value = getDefaultPrompt();
+    
+    // 从界面读取配置
+    function getAPIConfig() {
+        return {
+            baseUrl: apiBaseUrlInput.value.trim().replace(/\/$/, ''),
+            apiKey: apiKeyInput.value.trim(),
+            model: modelNameInput.value.trim()
+        };
+    }
+    
+    // 调用大模型接口 (单批次)
+    async function callAIBatch(batchItems, systemPromptText) {
+        // batchItems: [{ idValue, textContent }]
+        // 构建 input_list 文本: 序号. 内容
+        const inputListStr = batchItems.map((item, idx) => `${idx+1}. ${item.textContent}`).join('\n');
+        // 替换提示词中的占位符
+        let userPrompt = systemPromptText.replace(/{{input_list}}/g, inputListStr);
+        const config = getAPIConfig();
+        if (!config.apiKey) throw new Error("请填写 API Key");
+        if (!config.baseUrl) throw new Error("请填写 API Base URL");
+        if (!config.model) throw new Error("请填写 Model Name");
+        
+        const url = `${config.baseUrl}/chat/completions`;
+        const payload = {
+            model: config.model,
+            messages: [
+                { role: "system", content: "你是一个严格遵循格式的数据处理助手，只输出合法JSON数组。" },
+                { role: "user", content: userPrompt }
+            ],
+            temperature: 0.2,
+            response_format: { type: "json_object" }  // 部分模型支持，不强制但增加倾向
+        };
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.apiKey}`
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`API错误 ${response.status}: ${errText.substring(0, 200)}`);
+        }
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) throw new Error("大模型返回内容为空");
+        // 解析 JSON，可能包含额外字符，需要提取第一个数组
+        let jsonArray = null;
+        try {
+            // 尝试匹配JSON数组: 用正则提取[ ... ]
+            const match = content.match(/\[\s*\{.*?\}\s*\]/s);
+            if (match) {
+                jsonArray = JSON.parse(match[0]);
+            } else {
+                jsonArray = JSON.parse(content);
+            }
+        } catch(e) {
+            throw new Error(`解析AI响应失败，返回内容: ${content.substring(0, 200)}`);
+        }
+        if (!Array.isArray(jsonArray)) throw new Error("AI返回的不是数组");
+        if (jsonArray.length !== batchItems.length) {
+            throw new Error(`返回结果数量不匹配: 期望${batchItems.length}条, 实际${jsonArray.length}条`);
+        }
+        // 标准化字段映射: user_concern, part_phenomenon, improvement_opportunity
+        const mappedResults = jsonArray.map(item => {
+            let concern = item.user_concern ?? item['用户关注点'] ?? '';
+            let part = item.part_phenomenon ?? item['部位+现象'] ?? '';
+            let opp = item.improvement_opportunity ?? item['改善机会点'] ?? '';
+            return { concern, part, opp };
+        });
+        return mappedResults;
+    }
+    
+    // 批量处理主流程 (串行批次)
+    async function startBatchProcess() {
+        if (isProcessing) {
+            addLog("已有处理任务进行中，请先终止或等待完成", true);
+            return;
+        }
+        // 校验必要参数
+        idField = idFieldSelect.value;
+        textField = textFieldSelect.value;
+        if (!idField || !textField) {
+            addLog("请完整选择唯一标识字段和待处理字段", true);
+            return;
+        }
+        if (rawData.length === 0) {
+            addLog("没有数据，请先上传CSV", true);
+            return;
+        }
+        const apiConfig = getAPIConfig();
+        if (!apiConfig.apiKey || !apiConfig.baseUrl || !apiConfig.model) {
+            addLog("请填写完整API Base URL、API Key 和 Model Name", true);
+            return;
+        }
+        // 校验唯一标识
+        if (!checkUniqueIdField(idField)) {
+            if (!confirm(`字段“${idField}”存在重复值，继续可能导致匹配错误，是否仍然继续？`)) return;
+        }
+        
+        // 重置终止标志
+        stopRequested = false;
+        isProcessing = true;
+        startBtn.disabled = true;
+        cancelBtn.disabled = false;
+        exportBtn.disabled = true;   // 处理完成才可导出最终版本
+        // 先重置新增三列为空（避免旧数据干扰）
+        for (let row of rawData) {
+            row['用户关注点'] = '';
+            row['部位+现象'] = '';
+            row['改善机会点'] = '';
+        }
+        renderTablePreview();
+        
+        const batchSize = parseInt(batchSizeInput.value, 10) || 5;
+        const promptTemplateText = promptTemplate.value || getDefaultPrompt();
+        
+        // 构建所有待处理条目 (存储索引与唯一标识以及文本)
+        const allItems = rawData.map((row, idx) => ({
+            index: idx,
+            idValue: String(row[idField]),
+            textContent: row[textField] ? String(row[textField]) : ""
+        })).filter(item => item.textContent.trim() !== ""); // 过滤空文本（但仍保留空文本可传，但可能会浪费，最好标记空直接跳过）
+        // 对于空文本直接填充默认分析？
+        if (allItems.length !== rawData.length) {
+            addLog(`警告: 有 ${rawData.length - allItems.length} 行待处理字段为空，将直接留空三列。`, true);
+            // 将空文本的行结果置空
+            for (let i=0; i<rawData.length; i++) {
+                const txt = rawData[i][textField];
+                if (!txt || txt.trim() === "") {
+                    rawData[i]['用户关注点'] = '文本为空，无分析';
+                    rawData[i]['部位+现象'] = '';
+                    rawData[i]['改善机会点'] = '';
+                }
+            }
+            renderTablePreview();
+        }
+        
+        const validItems = allItems;
+        const total = validItems.length;
+        // 分批
+        const batches = [];
+        for (let i=0; i<total; i+=batchSize) {
+            batches.push(validItems.slice(i, i+batchSize));
+        }
+        totalBatches = batches.length;
+        currentBatchIndex = 0;
+        let processedCount = 0;
+        
+        addLog(`🚀 开始处理，总有效行数: ${total}，批次大小: ${batchSize}，总批次数: ${totalBatches}`);
+        
+        for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+            if (stopRequested) {
+                addLog("⚠️ 用户终止处理", true);
+                break;
+            }
+            const batch = batches[batchIdx];
+            currentBatchIndex = batchIdx + 1;
+            const progressPercent = Math.floor((processedCount / total) * 100);
+            progressFill.style.width = `${progressPercent}%`;
+            progressFill.innerText = `${progressPercent}%`;
+            statusMsgSpan.innerText = `处理批次 ${currentBatchIndex}/${totalBatches}`;
+            
+            addLog(`📦 批次 ${currentBatchIndex}/${totalBatches} 包含 ${batch.length} 条记录，调用AI...`);
+            try {
+                const aiResults = await callAIBatch(batch, promptTemplateText);
+                // 更新 rawData 中对应的行
+                for (let j=0; j<batch.length; j++) {
+                    const item = batch[j];
+                    const result = aiResults[j];
+                    const row = rawData[item.index];
+                    if (row) {
+                        row['用户关注点'] = result.concern || '';
+                        row['部位+现象'] = result.part || '';
+                        row['改善机会点'] = result.opp || '';
+                    }
+                }
+                processedCount += batch.length;
+                // 实时刷新表格
+                renderTablePreview();
+                addLog(`✅ 批次 ${currentBatchIndex} 成功完成，已更新 ${batch.length} 行`);
+            } catch (err) {
+                addLog(`❌ 批次 ${currentBatchIndex} 调用失败: ${err.message}`, true);
+                // 失败可选暂停还是继续？选择暂停以避免连锁错误
+                addLog("由于批次失败，已停止处理，请检查API配置或提示词后重试", true);
+                break;
+            }
+            // 轻微延迟避免请求过频
+            await new Promise(r => setTimeout(r, 200));
+        }
+        
+        const finalProgress = Math.floor((processedCount / total) * 100);
+        progressFill.style.width = `${finalProgress}%`;
+        progressFill.innerText = `${finalProgress}%`;
+        if (!stopRequested && processedCount === total) {
+            addLog("🎉 所有批次处理完成！现在可导出带有新三列的CSV文件。");
+            statusMsgSpan.innerText = "处理完成";
+            exportBtn.disabled = false;
+        } else if (stopRequested) {
+            addLog("处理已中断，部分结果已保存，可导出当前数据。");
+            exportBtn.disabled = false; // 允许导出部分结果
+        } else if (processedCount < total) {
+            addLog("处理未完整完成，请检查日志后重试。");
+            exportBtn.disabled = false;
+        }
+        isProcessing = false;
+        startBtn.disabled = false;
+        cancelBtn.disabled = true;
+        renderTablePreview();
+    }
+    
+    // 终止处理
+    function stopProcess() {
+        if (isProcessing) {
+            stopRequested = true;
+            addLog("正在终止处理...");
+        }
+    }
+    
+    // 导出最终CSV (包含原有列+三列)
+    function exportToCSV() {
+        if (!rawData.length) {
+            addLog("无数据可导出", true);
+            return;
+        }
+        const exportColumns = [...originalColumns, '用户关注点', '部位+现象', '改善机会点'];
+        const exportData = rawData.map(row => {
+            const newRow = {};
+            exportColumns.forEach(col => {
+                newRow[col] = row[col] !== undefined ? row[col] : '';
+            });
+            return newRow;
+        });
+        const csvString = Papa.unparse(exportData, { quotes: true, header: true });
+        const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.setAttribute('download', 'analyzed_result.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        addLog("📎 导出CSV文件成功");
+    }
+    
+    // 绑定按钮事件
+    startBtn.addEventListener('click', startBatchProcess);
+    cancelBtn.addEventListener('click', stopProcess);
+    exportBtn.addEventListener('click', exportToCSV);
+    
+    // 当字段变化时启用开始按钮基础保障
+    idFieldSelect.addEventListener('change', () => {
+        if (rawData.length) startBtn.disabled = false;
+    });
+    textFieldSelect.addEventListener('change', () => {
+        if (rawData.length) startBtn.disabled = false;
+    });
+    
+    // 初始禁止导出及取消按钮
+    cancelBtn.disabled = true;
+    exportBtn.disabled = true;
+    startBtn.disabled = true;
+    addLog("系统就绪，请上传CSV并填写API配置。");
+</script>
+</body>
+</html>
